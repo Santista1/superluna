@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<body>
+	 <style>
+     body { margin: 0; }
+     #a { z-index: -1; position: absolute }
+     #b { z-index: 0; position: absolute; pointer-events: none }
+   </style>
+
+    <canvas id="a"></canvas>
+    <canvas id="b"></canvas>
+
+		<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+		<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+		<script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.141.0/build/three.module.js",
+          "TWEEN": "https://threejs.org/examples/jsm/libs/tween.module.min.js",
+          "FontLoader": "https://threejs.org/examples/jsm/loaders/FontLoader.js",
+          "TextGeometry": "https://threejs.org/examples/jsm/geometries/TextGeometry.js",
+          "three.interactive": "https://cdn.jsdelivr.net/npm/three.interactive@1.3.0/build/three.interactive.js",
+          "TransformControls": "https://threejs.org/examples/jsm/controls/TransformControls.js"
+        }
+      }
+    </script>
+
+    <script type="module">
+
+      import * as THREE from 'three';
+      import { TWEEN } from 'TWEEN';
+      import { FontLoader } from 'FontLoader';
+      import { TextGeometry } from 'TextGeometry';
+      import { InteractionManager } from 'three.interactive';
+      import { TransformControls } from 'TransformControls';
+      import { OrbitControls } from 'https://unpkg.com/three@0.141.0/examples/jsm/controls/OrbitControls.js';
+
+      //____________________________________________________________Scene
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			const renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('#a'), antialias: true});
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize( window.innerWidth, window.innerHeight );
+      camera.position.z = 1460;
+
+      var width = window.innerWidth / 100;
+      var height = window.innerHeight / 100;
+      var aspect = window.innerWidth / window.innerHeight;
+      var frustumSize = 7;
+
+      const menuScene = new THREE.Scene();
+      const menuCamera = new THREE.OrthographicCamera( frustumSize * aspect / - 2, frustumSize * aspect / 2, frustumSize / 2, frustumSize / - 2, 0.1, 100 );
+      const menuCanvas = document.querySelector('#b');
+      const menuRenderer = new THREE.WebGLRenderer({ alpha: true, canvas: menuCanvas, antialias: true });
+      menuRenderer.setClearColor( 0xffffff, 0 );
+      menuRenderer.setPixelRatio(window.devicePixelRatio);
+      menuRenderer.setSize( window.innerWidth, window.innerHeight );
+      menuCamera.position.z = 5;
+
+			//____________________________________________________________Controls
+
+      var controls = new OrbitControls( camera, renderer.domElement );
+      controls.enablePan = false;
+
+			const interactionManager = new InteractionManager( renderer, camera, renderer.domElement);
+			const menuInteractionManager = new InteractionManager( renderer, menuCamera, renderer.domElement);
+
+      //____________________________________________________________Textures
+
+      var textureLoader = new THREE.TextureLoader();
+
+      //var moonTexture = textureLoader.load( "https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/lroc_color_poles_1k.jpg" );
+			//var moonTexture = textureLoader.load( "https://raw.githubusercontent.com/CoryG89/MoonDemo/master/img/maps/moon.jpg" );
+			var moonTexture = textureLoader.load( "https://res.cloudinary.com/dexin8o58/image/upload/v1668395548/moon_2_amg6mr.jpg" );
+
+      var displacementMap = textureLoader.load( "https://jaanga.github.io/moon/heightmaps/WAC_GLD100_E000N1800_016P.jpg" );
+			//var displacementMap = textureLoader.load( "https://coryg89.github.io/assets/themes/img/normal1024x512.jpg" );
+
+      var worldTexture = textureLoader.load( "https://raw.githubusercontent.com/CoryG89/MoonDemo/master/img/starfield/top.png" );
+      //var worldTexture = textureLoader.load( "https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/hipp8_s.jpg" );
+
+      //____________________________________________________________Fonts
+
+      const font = async (fontFile) => {
+       let font = await new Promise(res => new FontLoader().load(fontFile, res));
+       return font;
+      };
+      const openSans = await font('./openSans.json');
+
+      //____________________________________________________________Lights
+
+      const light = new THREE.DirectionalLight("white", 2);
+      light.position.set(-100, 10,50);
+      scene.add(light);
+
+      //____________________________________________________________Geometry
+
+      const point = (x = 0, y = 0, z = 0) => {
+        let point = new THREE.Vector3( x, y, z );
+        return point;
+      };
+
+      //____________________________________________________________sceneGeometry
+
+			var geometry = new THREE.SphereGeometry( 2, 100, 100, 0 );
+			var material = new THREE.MeshPhongMaterial({
+        color: "darkgray",
+        map: moonTexture,
+        displacementMap: displacementMap,
+        displacementScale: 0.01,
+        bumpMap: displacementMap,
+        bumpScale: 0.05,
+				shininess: 0,
+				specular : "red"
+      });
+			var moon = new THREE.Mesh( geometry, material );
+				moon.phiLength = 3;
+      scene.add(moon);
+
+			var worldGeometry = new THREE.SphereGeometry( 500,60,60 );
+      var worldMaterial = new THREE.MeshBasicMaterial ({
+        color: "white",
+        map: worldTexture,
+        side: THREE.BackSide
+      });
+      var world = new THREE.Mesh( worldGeometry, worldMaterial );
+      //scene.add(world);
+
+      const button = (font, string, size, point, textColor, buttonColor, clickFunction) => {
+
+        let textSetting = {
+					font: font,
+					size: size,
+					height: 0,
+					curveSegments: 12
+				};
+
+        let geometry = new TextGeometry( string, textSetting );
+        let material = new THREE.MeshBasicMaterial( { color: textColor, transparent: true, opacity: 1 } );
+        let text = new THREE.Mesh( geometry,material );
+
+        geometry.computeBoundingBox();
+        const offset = - 0.5 * ( geometry.boundingBox.max.x - geometry.boundingBox.min.x );
+        text.position.set( offset , size / -2 , 0 );
+
+        let cgeometry = new THREE.CapsuleGeometry( size, - offset * 2 , 10 , 20 );
+        let cmaterial = new THREE.MeshBasicMaterial( { color: buttonColor, transparent: true, opacity: 0.1 } );
+        const capsule = new THREE.Mesh( cgeometry, cmaterial );
+        capsule.rotation.z = Math.PI / 2;
+
+				capsule.addEventListener("mouseenter", (event) => {
+				event.target.material = new THREE.MeshBasicMaterial({ color: 'blue', transparent: true, opacity: 0.1});
+  			});
+
+  			capsule.addEventListener("mouseout", (event) => { event.target.material = cmaterial; });
+
+				capsule.addEventListener("click", (event) => { clickFunction() } );
+
+  			menuInteractionManager.add(capsule);
+
+        const group = new THREE.Group();
+        group.add( text );
+        group.add( capsule );
+
+        group.position.x += point.x;
+        group.position.y += point.y;
+        group.position.z += point.z;
+
+        return group;
+      };
+
+			function randomMoonColor() {
+    		moon.material = new THREE.MeshPhongMaterial({
+					color: "darkgray",
+					map: moonTexture,
+					displacementMap: displacementMap,
+					displacementScale: 0.01,
+					bumpMap: displacementMap,
+					bumpScale: 0.05,
+					shininess: 0,
+					specular : Math.random() * 0xffffff
+				})
+			};
+
+
+      const x = 4
+			const s = 0.17
+      menuScene.add(button( openSans, "Lunc Deposited :", s , point(-x,2,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Total Supply :", s , point(-x,1,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Circulating Supply :", s , point(-x,0,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Mint Fee :", s , point(-x,-1,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Swap Fee :", s , point(-x,-2,0) , "white", "red", randomMoonColor ));
+
+      menuScene.add(button( openSans, "Mint", s , point(x,2,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Burn", s , point(x,1,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Send", s , point(x,0,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Receive", s , point(x,-1,0) , "white", "red", randomMoonColor ));
+      menuScene.add(button( openSans, "Swap", 0.2 , point(x,-2,0) , "white", "red", randomMoonColor ));
+
+		const vertices = [];
+		for ( let i = 0; i < 30000; i ++ ) {
+
+			let x = THREE.MathUtils.randFloatSpread( 2000 );
+			let y = THREE.MathUtils.randFloatSpread( 2000 );
+			let z = THREE.MathUtils.randFloatSpread( 2000 );
+
+			if ( Math.abs( x * y * z ) > 100000 ) { vertices.push( x, y, z ); };
+
+		}
+
+		const g = new THREE.BufferGeometry();
+		g.setAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
+
+		const m = new THREE.PointsMaterial( { color: 'white', size : 1 } );
+
+		const points = new THREE.Points( g, m );
+
+		scene.add( points );
+
+
+
+
+      //____________________________________________________________Animation
+
+      var a = true
+      function animate() {
+        requestAnimationFrame( animate );
+
+        moon.rotation.y += 0.002;
+        moon.rotation.x += 0.0001;
+        points.rotation.y += 0.001;
+        points.rotation.x += 0.001;
+
+          if (camera.position.z > 10 && a) {
+          camera.position.z -= 50;
+        } else { a = false };
+
+				 menuInteractionManager.update();
+
+        renderer.render( scene, camera );
+        menuRenderer.render( menuScene, menuCamera );
+      };
+      animate();
+			//____________________________________________________________windowResize
+
+      function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+        width = window.innerWidth / 100;
+        height = window.innerHeight / 100;
+        aspect = window.innerWidth / window.innerHeight;
+
+        menuCamera.left = frustumSize * aspect / - 2;
+        menuCamera.right = frustumSize * aspect / 2;
+        menuCamera.top = frustumSize / 2;
+        menuCamera.bottom = - frustumSize / 2;
+
+        menuCamera.updateProjectionMatrix();
+        menuRenderer.setSize( window.innerWidth, window.innerHeight );
+
+      };
+
+      window.addEventListener( 'resize', onWindowResize );
+
+      //____________________________________________________________End
+    </script>
+  </body>
+</html>
